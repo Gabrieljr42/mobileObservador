@@ -1,0 +1,27 @@
+export type Concurso = {
+  id: number;
+  source_id: number;
+  external_id?: string | null;
+  banca?: string | null;
+  orgao?: string | null;
+  titulo: string;
+  modalidade?: string | null;
+  cargo?: string | null;
+  area?: string | null;
+  cidade?: string | null;
+  uf?: string | null;
+  status?: string | null;
+  edital_numero?: string | null;
+  edital_data?: string | null;
+  inscricao_inicio?: string | null;
+  inscricao_fim?: string | null;
+  link_pagina?: string | null;
+  link_edital?: string | null;
+  link_inscricao?: string | null;
+  resumo?: string | null;
+  raw_data?: Record<string, unknown> | null;
+  content_hash?: string | null;
+  fetched_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
