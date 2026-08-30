@@ -65,6 +65,12 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => <MaterialIcons name="person" size={24} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="atualizacoes"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

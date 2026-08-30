@@ -2,6 +2,8 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Linki
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { fetchConcursoById, getDemoConcursoById } from '../../src/api/client';
+import { getConcursoPublications, ConcursoPublication } from '../../src/api/publications';
+import { getConcursoVersions, ConcursoVersion } from '../../src/api/updates';
 import { Concurso } from '../../src/types/concurso';
 import { getFavorites, addFavorite, removeFavorite } from '../../src/api/favorites';
 import { createAlert } from '../../src/api/alerts';
@@ -10,6 +12,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LoadingState } from '../../src/components/LoadingState';
 import { ErrorState } from '../../src/components/ErrorState';
 import { StatusBadge } from '../../src/components/StatusBadge';
+import { PublicationCard } from '../../src/components/PublicationCard';
+import { TimelineItem } from '../../src/components/TimelineItem';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/providers/AuthProvider';
 
@@ -23,6 +27,8 @@ export default function ConcursoDetalhe() {
   const { user } = useAuth();
   
   const [concurso, setConcurso] = useState<Concurso | null>(null);
+  const [publications, setPublications] = useState<ConcursoPublication[]>([]);
+  const [versions, setVersions] = useState<ConcursoVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [favorite, setFavorite] = useState(false);
@@ -47,9 +53,21 @@ export default function ConcursoDetalhe() {
       if (useDemo) {
         const data = getDemoConcursoById(concursoId);
         setConcurso(data);
+        setPublications([]);
+        setVersions([]);
       } else {
         const data = await fetchConcursoById(concursoId);
         setConcurso(data);
+        try {
+          const [pubs, vers] = await Promise.all([
+            getConcursoPublications(concursoId),
+            getConcursoVersions(concursoId)
+          ]);
+          setPublications(pubs);
+          setVersions(vers);
+        } catch (e) {
+          console.warn("Failed to load versions/publications", e);
+        }
       }
       const favs = await getFavorites();
       const isFav = favs.some(f => f.id === concursoId);
@@ -208,6 +226,38 @@ export default function ConcursoDetalhe() {
              </View>
           </View>
         </View>
+
+        <View style={[styles.section, { marginTop: 24 }]}>
+          <View style={styles.sectionHeader}>
+             <View style={styles.sectionIcon}>
+               <MaterialIcons name="article" size={20} color={theme.colors.onSecondaryContainer} />
+             </View>
+             <Text style={styles.sectionTitle}>Publicações e documentos</Text>
+          </View>
+          {publications.length === 0 ? (
+            <Text style={styles.emptyText}>Nenhuma publicação estruturada encontrada ainda.</Text>
+          ) : (
+            publications.map(pub => <PublicationCard key={pub.id} pub={pub} />)
+          )}
+        </View>
+
+        <View style={[styles.section, { marginTop: 24 }]}>
+          <View style={styles.sectionHeader}>
+             <View style={styles.sectionIcon}>
+               <MaterialIcons name="history" size={20} color={theme.colors.onSecondaryContainer} />
+             </View>
+             <Text style={styles.sectionTitle}>Histórico de alterações</Text>
+          </View>
+          {versions.length === 0 ? (
+            <Text style={styles.emptyText}>Sem alterações recentes.</Text>
+          ) : (
+            <View style={{ paddingTop: 8 }}>
+              {versions.map((ver, idx) => (
+                <TimelineItem key={ver.id} version={ver} isLast={idx === versions.length - 1} />
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       {/* CREATE ALERT MODAL */}
@@ -280,6 +330,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   sectionIcon: { width: 40, height: 40, borderRadius: 8, backgroundColor: theme.colors.secondaryContainer, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: theme.colors.primary },
+  emptyText: { fontSize: 14, color: theme.colors.mutedText, textAlign: 'center', marginVertical: 16 },
   timeline: { paddingLeft: 8 },
   timelineItem: { paddingLeft: 16, borderLeftWidth: 2, borderLeftColor: theme.colors.surfaceHighest, paddingBottom: 16 },
   timelineLabel: { fontSize: 10, fontWeight: 'bold', color: theme.colors.tertiaryContainer, letterSpacing: 1, marginBottom: 4 },

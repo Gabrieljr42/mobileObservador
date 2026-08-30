@@ -64,15 +64,34 @@ export default function Notificacoes() {
     }
   };
 
-  const renderItem = ({ item }: { item: any }) => (
-    <Pressable style={[styles.card, !item.is_read && styles.cardUnread]} onPress={() => markAsRead(item.id)}>
-      <View style={styles.cardHeader}>
-        <Text style={[styles.cardTitle, !item.is_read && styles.textUnread]}>{item.title}</Text>
-        {!item.is_read && <View style={styles.unreadDot} />}
-      </View>
-      <Text style={styles.cardBody}>{item.body}</Text>
-    </Pressable>
-  );
+  const handlePressNotif = async (item: any) => {
+    if (!item.is_read) {
+      await markAsRead(item.id);
+    }
+    if (item.concurso_id) {
+      router.push(`/concurso/${item.concurso_id}`);
+    }
+  };
+
+  const renderItem = ({ item }: { item: any }) => {
+    const dateStr = item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '';
+
+    return (
+      <Pressable style={[styles.card, !item.is_read && styles.cardUnread]} onPress={() => handlePressNotif(item)}>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardTitle, !item.is_read && styles.textUnread]} numberOfLines={2}>{item.title}</Text>
+          <View style={styles.rightInfo}>
+            {dateStr ? <Text style={[styles.dateText, !item.is_read && styles.textUnreadDate]}>{dateStr}</Text> : null}
+            {!item.is_read && <View style={styles.unreadDot} />}
+          </View>
+        </View>
+        {item.notification_type && (
+          <Text style={styles.typeText}>{item.notification_type.replace('_', ' ').toUpperCase()}</Text>
+        )}
+        <Text style={styles.cardBody} numberOfLines={3}>{item.body}</Text>
+      </Pressable>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -130,4 +149,8 @@ const createStyles = (theme: any) => StyleSheet.create({
   textUnread: { color: theme.colors.primary },
   unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.primary },
   cardBody: { fontSize: 14, color: theme.colors.mutedText, lineHeight: 20 },
+  rightInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dateText: { fontSize: 10, color: theme.colors.mutedText, fontWeight: 'bold' },
+  textUnreadDate: { color: theme.colors.primary },
+  typeText: { fontSize: 10, color: theme.colors.primary, fontWeight: 'bold', marginBottom: 4, letterSpacing: 0.5 },
 });

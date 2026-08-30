@@ -2,13 +2,13 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useAppTheme } from '../theme';
 import { MaterialIcons } from '@expo/vector-icons';
 
-export function EmptyState({ title = 'Nenhum resultado', message = 'Não encontramos dados para exibir no momento.' }: { title?: string, message?: string }) {
+export function EmptyState({ title = 'Nenhum resultado', message = 'Não encontramos dados para exibir no momento.', icon = 'inbox' }: { title?: string, message?: string, icon?: keyof typeof MaterialIcons.glyphMap }) {
   const theme = useAppTheme();
   const styles = createStyles(theme);
 
   return (
     <View style={styles.container}>
-      <MaterialIcons name="inbox" size={48} color={theme.colors.mutedText} />
+      <MaterialIcons name={icon as any} size={48} color={theme.colors.mutedText} />
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.message}>{message}</Text>
     </View>

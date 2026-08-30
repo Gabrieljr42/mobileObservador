@@ -4,8 +4,11 @@ import { useAppTheme } from '../../src/theme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState, useRef } from 'react';
 import { fetchConcursos, getDemoConcursos } from '../../src/api/client';
+import { getRecentUpdates, getMyUpdates, ConcursoUpdate } from '../../src/api/updates';
+import { getNotifications } from '../../src/api/notifications';
 import { Concurso } from '../../src/types/concurso';
 import { ConcursoCard } from '../../src/components/ConcursoCard';
+import { UpdateCard } from '../../src/components/UpdateCard';
 import { LoadingState } from '../../src/components/LoadingState';
 import { ErrorState } from '../../src/components/ErrorState';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -18,8 +21,10 @@ export default function Dashboard() {
 
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [concursos, setConcursos] = useState<Concurso[]>([]);
+  const [updates, setUpdates] = useState<ConcursoUpdate[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
@@ -32,10 +37,26 @@ export default function Dashboard() {
     try {
       if (useDemo) {
         setConcursos(getDemoConcursos());
+        setUpdates([]);
         setIsDemo(true);
       } else {
         const data = await fetchConcursos();
         setConcursos(data);
+        
+        try {
+          if (user) {
+            const myUpdates = await getMyUpdates(5);
+            setUpdates(myUpdates);
+            const notifs = await getNotifications(true);
+            setUnreadCount(notifs.length);
+          } else {
+            const recent = await getRecentUpdates(5);
+            setUpdates(recent);
+          }
+        } catch (e) {
+          console.warn("Could not fetch updates.", e);
+        }
+
         setIsDemo(false);
       }
     } catch (e: any) {
@@ -67,8 +88,13 @@ export default function Dashboard() {
             <MaterialIcons name="menu" size={24} color={theme.colors.primary} />
           </Pressable>
           <Text style={styles.appTitle}>RadarConcursos</Text>
-          <Pressable onPress={() => router.push('/notificacoes')} hitSlop={10}>
+          <Pressable onPress={() => router.push('/notificacoes')} hitSlop={10} style={{ position: 'relative' }}>
             <MaterialIcons name="notifications" size={24} color={theme.colors.primary} />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
           </Pressable>
         </View>
         <Text style={styles.greeting}>Olá, concurseiro!</Text>
@@ -95,6 +121,23 @@ export default function Dashboard() {
         )}
 
         <View style={styles.sectionHeader}>
+           <Text style={styles.sectionTitle}>Últimas atualizações</Text>
+           <Pressable onPress={() => router.push('/(tabs)/atualizacoes')}><Text style={styles.viewAll}>Ver todas</Text></Pressable>
+        </View>
+
+        {updates.length === 0 && !loading && !error && (
+          <EmptyState message="Sem atualizações recentes." />
+        )}
+
+        {updates.map(update => (
+          <UpdateCard 
+            key={update.id.toString()} 
+            update={update} 
+            onPress={() => router.push(`/concurso/${update.concurso_id}`)} 
+          />
+        ))}
+
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
            <Text style={styles.sectionTitle}>Recomendados para você</Text>
            <Pressable onPress={() => router.push('/(tabs)/busca')}><Text style={styles.viewAll}>Ver todos</Text></Pressable>
         </View>
@@ -198,5 +241,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   drawerLinkText: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text },
   drawerDivider: { height: 1, backgroundColor: theme.colors.surfaceHighest, marginVertical: 16 },
   drawerLinkLogout: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 16, marginTop: 'auto' },
-  drawerLinkTextLogout: { fontSize: 16, fontWeight: 'bold', color: theme.colors.error }
+  drawerLinkTextLogout: { fontSize: 16, fontWeight: 'bold', color: theme.colors.error },
+  badge: { position: 'absolute', top: -4, right: -4, backgroundColor: theme.colors.error, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: theme.colors.surfaceLowest, fontSize: 10, fontWeight: 'bold' }
 });
