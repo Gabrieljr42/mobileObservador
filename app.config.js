@@ -3,6 +3,16 @@ module.exports = ({ config }) => {
 
   return {
     ...config,
+    android: {
+      ...config.android,
+      package: "com.gabrieljunior.observadorconcursos",
+    },
+    plugins: Array.from(new Set([
+      ...(config.plugins || []),
+      "expo-sqlite",
+      "expo-background-task",
+      "expo-secure-store",
+    ])),
     extra: {
       ...config.extra,
       router: {

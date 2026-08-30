@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { localPublications } from '../db/repositories';
 
 export type ConcursoPublication = {
   id: number;
@@ -13,6 +13,5 @@ export type ConcursoPublication = {
 };
 
 export const getConcursoPublications = async (concursoId: number): Promise<ConcursoPublication[]> => {
-  const response = await apiClient.get(`/concursos/${concursoId}/publications`);
-  return response.data;
+  return localPublications.byConcurso(concursoId);
 };

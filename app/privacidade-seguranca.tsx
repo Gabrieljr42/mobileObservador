@@ -4,6 +4,8 @@ import { useAppTheme } from '../src/theme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../src/providers/AuthProvider';
+import { clearLocalData } from '../src/db/database';
+import { forgetOfflineAccount } from '../src/storage/auth';
 
 export default function PrivacidadeSeguranca() {
   const theme = useAppTheme();
@@ -26,6 +28,8 @@ export default function PrivacidadeSeguranca() {
     Alert.alert('Limpar Sessão Local', 'Isso removerá seus dados locais e fará logout da conta atual. Continuar?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Limpar', style: 'destructive', onPress: async () => {
+        await clearLocalData();
+        await forgetOfflineAccount();
         await logout();
       }}
     ]);

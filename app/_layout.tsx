@@ -1,3 +1,4 @@
+import '../src/sync/background';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../src/providers/AuthProvider';
@@ -21,8 +22,8 @@ function RootLayoutNav() {
     if (!isAuthenticated && (inTabsGroup || isPreferencias)) {
       // Redirect to login or onboarding
       router.replace('/onboarding');
-    } else if (isAuthenticated && segments[0] === 'login') {
-      // If logged in and going to login, redirect to tabs (preferences check usually happens in login or here)
+    } else if (isAuthenticated && ['index', 'onboarding', 'login', 'cadastro'].includes(String(segments[0]))) {
+      // A remembered local session does not require a server round-trip to boot.
       router.replace('/(tabs)/inicio');
     }
   }, [isAuthenticated, isLoading, segments]);

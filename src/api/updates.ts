@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { localUpdates, localVersions } from '../db/repositories';
 
 export type ConcursoUpdate = {
   id: number;
@@ -25,17 +25,6 @@ export type ConcursoVersion = {
   captured_at: string;
 };
 
-export const getRecentUpdates = async (limit: number = 20): Promise<ConcursoUpdate[]> => {
-  const response = await apiClient.get(`/updates/recent?limit=${limit}`);
-  return response.data;
-};
-
-export const getMyUpdates = async (limit: number = 20): Promise<ConcursoUpdate[]> => {
-  const response = await apiClient.get(`/me/updates?limit=${limit}`);
-  return response.data;
-};
-
-export const getConcursoVersions = async (concursoId: number): Promise<ConcursoVersion[]> => {
-  const response = await apiClient.get(`/concursos/${concursoId}/versions`);
-  return response.data;
-};
+export const getRecentUpdates = async (limit = 20): Promise<ConcursoUpdate[]> => localUpdates.recent(limit);
+export const getMyUpdates = async (limit = 20): Promise<ConcursoUpdate[]> => localUpdates.mine(limit);
+export const getConcursoVersions = async (concursoId: number): Promise<ConcursoVersion[]> => localVersions.byConcurso(concursoId);

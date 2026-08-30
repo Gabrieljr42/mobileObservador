@@ -4,7 +4,7 @@ import { EmptyState } from '../src/components/EmptyState';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 import { getNotifications, markAllNotificationsAsRead, markNotificationAsRead } from '../src/api/notifications';
-import { runAlertsSync } from '../src/api/alerts';
+import { syncNow } from '../src/sync/syncService';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LoadingState } from '../src/components/LoadingState';
 import { ErrorState } from '../src/components/ErrorState';
@@ -57,8 +57,8 @@ export default function Notificacoes() {
 
   const handleTestSync = async () => {
     try {
-      await runAlertsSync();
-      loadNotifs();
+      await syncNow();
+      await loadNotifs();
     } catch (e) {
       console.warn('Erro sync', e);
     }
@@ -110,7 +110,7 @@ export default function Notificacoes() {
            </Pressable>
            <Pressable style={styles.actionBtn} onPress={handleTestSync}>
              <MaterialIcons name="sync" size={20} color={theme.colors.primary} />
-             <Text style={styles.actionBtnText}>Verificar</Text>
+             <Text style={styles.actionBtnText}>Sincronizar</Text>
            </Pressable>
         </View>
       </View>

@@ -14,6 +14,7 @@ import { ErrorState } from '../../src/components/ErrorState';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/providers/AuthProvider';
+import { getSyncStatus } from '../../src/sync/syncService';
 
 export default function Dashboard() {
   const theme = useAppTheme();
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
+  const [syncInfo, setSyncInfo] = useState<{ lastSyncAt: string | null; lastError: string | null }>({ lastSyncAt: null, lastError: null });
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -59,6 +61,8 @@ export default function Dashboard() {
 
         setIsDemo(false);
       }
+      const status = await getSyncStatus();
+      setSyncInfo({ lastSyncAt: status.lastSyncAt, lastError: status.lastError });
     } catch (e: any) {
       setError(e.message || 'Erro ao carregar.');
     } finally {
@@ -99,6 +103,11 @@ export default function Dashboard() {
         </View>
         <Text style={styles.greeting}>Olá, concurseiro!</Text>
         <Text style={styles.subtitle}>Mantenha o foco. Sua aprovação está mais próxima hoje.</Text>
+        <Text style={[styles.syncStatus, syncInfo.lastError ? styles.syncStatusOffline : null]}>
+          {syncInfo.lastSyncAt
+            ? `${syncInfo.lastError ? 'Offline - ' : ''}Dados locais atualizados em ${new Date(syncInfo.lastSyncAt).toLocaleString('pt-BR')}`
+            : 'Aguardando primeira sincronização com o servidor'}
+        </Text>
         {isDemo && (
           <View style={styles.demoBadge}>
             <Text style={styles.demoText}>MODO DEMONSTRAÇÃO</Text>
@@ -219,6 +228,8 @@ const createStyles = (theme: any) => StyleSheet.create({
   appTitle: { fontSize: 20, fontWeight: '900', color: theme.colors.primary },
   greeting: { fontSize: 28, fontWeight: '900', color: theme.colors.primary, marginBottom: 8 },
   subtitle: { fontSize: 14, color: theme.colors.mutedText },
+  syncStatus: { fontSize: 11, color: theme.colors.mutedText, marginTop: 8 },
+  syncStatusOffline: { color: theme.colors.error },
   demoBadge: { backgroundColor: theme.colors.amber, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, alignSelf: 'flex-start', marginTop: 12 },
   demoText: { color: theme.colors.amberDark, fontSize: 10, fontWeight: 'bold' },
   scrollContent: { padding: 24, paddingBottom: 100 },

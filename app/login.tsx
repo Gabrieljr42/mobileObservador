@@ -28,7 +28,7 @@ export default function Login() {
     try {
       await login(email, password);
     } catch (e: any) {
-      setError(e.response?.data?.detail || 'Erro ao fazer login. Tente novamente.');
+      setError(e.response?.data?.detail || e.message || 'Erro ao fazer login. Tente novamente.');
     } finally {
       setLoading(false);
     }

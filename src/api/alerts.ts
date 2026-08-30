@@ -1,26 +1,9 @@
-import { apiClient } from './client';
+import { localAlerts } from '../db/repositories';
 
-export const getAlerts = async () => {
-  const response = await apiClient.get('/me/alerts');
-  return response.data;
-};
+export const getAlerts = async () => localAlerts.all();
+export const createAlert = async (alert: any) => localAlerts.create(alert);
+export const updateAlert = async (alertId: number, data: any) => localAlerts.update(alertId, data);
+export const deleteAlert = async (alertId: number) => localAlerts.remove(alertId);
 
-export const createAlert = async (alert: any) => {
-  const response = await apiClient.post('/me/alerts', alert);
-  return response.data;
-};
-
-export const updateAlert = async (alertId: number, data: any) => {
-  const response = await apiClient.patch(`/me/alerts/${alertId}`, data);
-  return response.data;
-};
-
-export const deleteAlert = async (alertId: number) => {
-  const response = await apiClient.delete(`/me/alerts/${alertId}`);
-  return response.data;
-};
-
-export const runAlertsSync = async () => {
-  const response = await apiClient.post('/me/alerts/run/sync');
-  return response.data;
-};
+// Alert matching is server-owned; this compatibility method never starts a crawl.
+export const runAlertsSync = async () => ({ processed_alerts: 0, created_notifications: 0, offline_first: true });
