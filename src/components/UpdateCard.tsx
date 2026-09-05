@@ -4,6 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme';
 import { ConcursoUpdate } from '../api/updates';
 import { UpdateTypeBadge, getUpdateTypeConfig } from './UpdateTypeBadge';
+import { formatDate, formatDatesInText } from '../utils/formatters';
 
 export function UpdateCard({ update, onPress }: { update: ConcursoUpdate, onPress: () => void }) {
   const theme = useAppTheme();
@@ -11,7 +12,7 @@ export function UpdateCard({ update, onPress }: { update: ConcursoUpdate, onPres
   const config = getUpdateTypeConfig(update.change_type);
   
   // Format date relative or localized
-  const dateStr = new Date(update.captured_at).toLocaleDateString('pt-BR');
+  const dateStr = formatDate(update.captured_at);
 
   return (
     <Pressable style={styles.card} onPress={onPress}>
@@ -28,7 +29,7 @@ export function UpdateCard({ update, onPress }: { update: ConcursoUpdate, onPres
       
       <View style={styles.summaryBox}>
         <MaterialIcons name={config.icon as any} size={16} color={theme.colors.primary} />
-        <Text style={styles.summary} numberOfLines={2}>{update.change_summary}</Text>
+        <Text style={styles.summary} numberOfLines={2}>{formatDatesInText(update.change_summary)}</Text>
       </View>
     </Pressable>
   );

@@ -1,21 +1,24 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../src/theme';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Onboarding() {
   const theme = useAppTheme();
   const styles = createStyles(theme);
 
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>RadarConcursos</Text>
-      </View>
-      
-      <View style={styles.content}>
+    <View style={[styles.container, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 16 }]}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Text style={styles.title}>RadarConcursos</Text>
+        </View>
+
+        <View style={styles.content}>
         <View style={styles.cardHighlight}>
            <Text style={styles.cardBadge}>OPEN</Text>
            <Text style={styles.cardTitle}>Prefeitura de São Paulo</Text>
@@ -52,25 +55,27 @@ export default function Onboarding() {
             </View>
         </View>
 
-        <Pressable style={styles.button} onPress={() => router.push('/login')}>
+        <Pressable style={styles.button} onPress={() => router.push('/login')} accessibilityRole="button">
           <Text style={styles.buttonText}>Começar agora</Text>
           <MaterialIcons name="arrow-forward" size={20} color={theme.colors.onTertiaryContainer} />
         </Pressable>
 
-        <View style={styles.footer}>
+        <Pressable style={styles.footer} onPress={() => router.push('/login')} accessibilityRole="button" hitSlop={8}>
           <Text style={styles.footerText}>Já possui uma conta? </Text>
-          <Pressable onPress={() => router.push('/(tabs)/inicio')}>
+          <View>
             <Text style={styles.footerLink}>Entrar</Text>
-          </Pressable>
+          </View>
+        </Pressable>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const createStyles = (theme: any) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.surface, padding: 24, paddingTop: 64 },
-  header: { marginBottom: 48 },
+  container: { flex: 1, backgroundColor: theme.colors.surface, paddingHorizontal: 24 },
+  scrollContent: { flexGrow: 1 },
+  header: { marginBottom: 40 },
   title: { fontSize: 28, fontWeight: '900', color: theme.colors.primary, letterSpacing: -0.5 },
   content: { flex: 1 },
   cardHighlight: { backgroundColor: theme.colors.surfaceLowest, padding: 20, borderRadius: 16, marginBottom: 48, elevation: 2, shadowColor: '#000', shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.1, shadowRadius: 8 },
@@ -89,7 +94,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   featureText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.mutedText, textTransform: 'uppercase' },
   button: { backgroundColor: theme.colors.tertiaryContainer, padding: 20, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 'auto' },
   buttonText: { color: theme.colors.onTertiaryContainer, fontSize: 18, fontWeight: 'bold' },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
+  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 24, minHeight: 44 },
   footerText: { color: theme.colors.mutedText, fontSize: 14 },
   footerLink: { color: theme.colors.primary, fontSize: 14, fontWeight: 'bold' }
 });

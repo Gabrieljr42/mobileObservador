@@ -4,17 +4,19 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme';
 import { ConcursoVersion } from '../api/updates';
 import { getUpdateTypeConfig } from './UpdateTypeBadge';
+import { formatDate, formatDatesInText } from '../utils/formatters';
 
 export function TimelineItem({ version, isLast }: { version: ConcursoVersion, isLast: boolean }) {
   const theme = useAppTheme();
   const styles = createStyles(theme);
   const config = getUpdateTypeConfig(version.change_type);
   
-  const dateStr = new Date(version.captured_at).toLocaleDateString('pt-BR');
-
-  if (version.change_type === 'created' && !version.change_summary) {
-     version.change_summary = 'Concurso cadastrado pela primeira vez.';
-  }
+  const dateStr = formatDate(version.captured_at);
+  const summary = version.change_summary
+    ? formatDatesInText(version.change_summary)
+    : version.change_type === 'created'
+      ? 'Concurso cadastrado pela primeira vez.'
+      : 'Alteração registrada.';
 
   return (
     <View style={styles.container}>
@@ -29,7 +31,7 @@ export function TimelineItem({ version, isLast }: { version: ConcursoVersion, is
             <MaterialIcons name={config.icon as any} size={16} color={config.color} />
             <Text style={[styles.type, { color: config.color }]}>{config.label}</Text>
           </View>
-          <Text style={styles.summary}>{version.change_summary}</Text>
+          <Text style={styles.summary}>{summary}</Text>
         </View>
       </View>
     </View>

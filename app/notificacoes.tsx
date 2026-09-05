@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { useAppTheme } from '../src/theme';
 import { EmptyState } from '../src/components/EmptyState';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LoadingState } from '../src/components/LoadingState';
 import { ErrorState } from '../src/components/ErrorState';
 import { useRouter } from 'expo-router';
+import { formatDate, formatDatesInText } from '../src/utils/formatters';
 
 export default function Notificacoes() {
   const theme = useAppTheme();
@@ -19,6 +20,8 @@ export default function Notificacoes() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const loadNotifs = async () => {
     setLoading(true);
@@ -40,27 +43,39 @@ export default function Notificacoes() {
   const markAsRead = async (id: number) => {
     try {
       await markNotificationAsRead(id);
-      setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+      setNotifications(current => current.map(n => n.id === id ? { ...n, is_read: true } : n));
     } catch (e) {
       console.warn(e);
     }
   };
 
   const markAll = async () => {
+    if (markingAll || syncing) return;
+    setMarkingAll(true);
     try {
       await markAllNotificationsAsRead();
-      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+      setNotifications(current => current.map(n => ({ ...n, is_read: true })));
     } catch (e) {
-      console.warn(e);
+      Alert.alert('Erro', 'Não foi possível marcar as notificações como lidas.');
+    } finally {
+      setMarkingAll(false);
     }
   };
 
   const handleTestSync = async () => {
+    if (syncing || markingAll) return;
+    setSyncing(true);
     try {
-      await syncNow();
-      await loadNotifs();
+      const result = await syncNow();
+      if (!result.ok) {
+        Alert.alert('Sincronização não concluída', result.reason || 'Verifique sua conexão e tente novamente.');
+        return;
+      }
+      router.replace('/(tabs)/inicio');
     } catch (e) {
-      console.warn('Erro sync', e);
+      Alert.alert('Erro', 'Não foi possível sincronizar os dados agora.');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -74,7 +89,7 @@ export default function Notificacoes() {
   };
 
   const renderItem = ({ item }: { item: any }) => {
-    const dateStr = item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '';
+    const dateStr = item.created_at ? formatDate(item.created_at) : '';
 
     return (
       <Pressable style={[styles.card, !item.is_read && styles.cardUnread]} onPress={() => handlePressNotif(item)}>
@@ -88,7 +103,7 @@ export default function Notificacoes() {
         {item.notification_type && (
           <Text style={styles.typeText}>{item.notification_type.replace('_', ' ').toUpperCase()}</Text>
         )}
-        <Text style={styles.cardBody} numberOfLines={3}>{item.body}</Text>
+        <Text style={styles.cardBody} numberOfLines={3}>{formatDatesInText(item.body)}</Text>
       </Pressable>
     );
   };
@@ -104,13 +119,13 @@ export default function Notificacoes() {
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.headerActions}>
-           <Pressable style={styles.actionBtn} onPress={markAll}>
-             <MaterialIcons name="done-all" size={20} color={theme.colors.primary} />
+           <Pressable style={[styles.actionBtn, markingAll && styles.actionBtnDisabled]} onPress={markAll} disabled={markingAll || syncing} accessibilityRole="button">
+             {markingAll ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <MaterialIcons name="done-all" size={20} color={theme.colors.primary} />}
              <Text style={styles.actionBtnText}>Lidas</Text>
            </Pressable>
-           <Pressable style={styles.actionBtn} onPress={handleTestSync}>
-             <MaterialIcons name="sync" size={20} color={theme.colors.primary} />
-             <Text style={styles.actionBtnText}>Sincronizar</Text>
+           <Pressable style={[styles.actionBtn, syncing && styles.actionBtnDisabled]} onPress={handleTestSync} disabled={syncing || markingAll} accessibilityRole="button">
+             {syncing ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <MaterialIcons name="sync" size={20} color={theme.colors.primary} />}
+             <Text style={styles.actionBtnText}>Sincronizar tudo</Text>
            </Pressable>
         </View>
       </View>
@@ -139,18 +154,19 @@ const createStyles = (theme: any) => StyleSheet.create({
   backBtn: { padding: 8, marginLeft: -8 },
   title: { fontSize: 24, fontWeight: '900', color: theme.colors.primary },
   headerActions: { flexDirection: 'row', justifyContent: 'flex-start', gap: 16 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.colors.surfaceHighest, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: theme.colors.surfaceHighest, paddingHorizontal: 12, paddingVertical: 8, minHeight: 40, borderRadius: 8 },
+  actionBtnDisabled: { opacity: 0.6 },
   actionBtnText: { color: theme.colors.primary, fontWeight: 'bold' },
   content: { padding: 24 },
   card: { backgroundColor: theme.colors.surfaceLowest, padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.surfaceHighest },
-  cardUnread: { backgroundColor: theme.colors.primaryContainer, borderColor: theme.colors.primaryContainer },
+  cardUnread: { backgroundColor: theme.colors.unreadContainer, borderColor: theme.colors.secondaryContainer },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   cardTitle: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text, flex: 1 },
-  textUnread: { color: theme.colors.primary },
-  unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.primary },
+  textUnread: { color: theme.colors.onUnreadContainer },
+  unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.onUnreadContainer },
   cardBody: { fontSize: 14, color: theme.colors.mutedText, lineHeight: 20 },
   rightInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dateText: { fontSize: 10, color: theme.colors.mutedText, fontWeight: 'bold' },
-  textUnreadDate: { color: theme.colors.primary },
+  dateText: { fontSize: 11, color: theme.colors.mutedText, fontWeight: 'bold' },
+  textUnreadDate: { color: theme.colors.onUnreadContainer },
   typeText: { fontSize: 10, color: theme.colors.primary, fontWeight: 'bold', marginBottom: 4, letterSpacing: 0.5 },
 });

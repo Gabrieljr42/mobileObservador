@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Linking } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme';
 import { ConcursoPublication } from '../api/publications';
+import { formatDate } from '../utils/formatters';
 
 export function getPublicationTypeConfig(type: string) {
   switch (type) {
@@ -24,9 +25,7 @@ export function PublicationCard({ pub }: { pub: ConcursoPublication }) {
   const styles = createStyles(theme);
   const config = getPublicationTypeConfig(pub.publication_type);
   
-  const dateStr = pub.publication_date 
-    ? new Date(pub.publication_date).toLocaleDateString('pt-BR') 
-    : 'Data não informada';
+  const dateStr = formatDate(pub.publication_date);
 
   const handleOpen = () => {
     if (pub.link) {

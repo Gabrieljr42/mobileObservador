@@ -65,6 +65,37 @@ export default function Perfil() {
            </Pressable>
         </View>
 
+        <Text style={styles.sectionLabel}>APARÊNCIA</Text>
+        <View style={styles.appearanceCard}>
+          <View style={styles.appearanceHeading}>
+            <View style={styles.menuItemTextContainer}>
+              <Text style={styles.menuItemTitle}>Modo de exibição</Text>
+              <Text style={styles.menuItemSubtitle}>Escolha como o app será exibido.</Text>
+            </View>
+            <MaterialIcons name={theme.isDark ? 'dark-mode' : 'light-mode'} size={24} color={theme.colors.primary} />
+          </View>
+          <View style={styles.modeOptions}>
+            <Pressable
+              style={[styles.modeOption, theme.mode === 'light' && styles.modeOptionActive]}
+              onPress={() => void theme.setMode('light')}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: theme.mode === 'light' }}
+            >
+              <MaterialIcons name="light-mode" size={18} color={theme.mode === 'light' ? theme.colors.surfaceLowest : theme.colors.primary} />
+              <Text style={[styles.modeOptionText, theme.mode === 'light' && styles.modeOptionTextActive]}>Claro</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modeOption, theme.mode === 'dark' && styles.modeOptionActive]}
+              onPress={() => void theme.setMode('dark')}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: theme.mode === 'dark' }}
+            >
+              <MaterialIcons name="dark-mode" size={18} color={theme.mode === 'dark' ? theme.colors.surfaceLowest : theme.colors.primary} />
+              <Text style={[styles.modeOptionText, theme.mode === 'dark' && styles.modeOptionTextActive]}>Escuro</Text>
+            </Pressable>
+          </View>
+        </View>
+
         <Pressable style={styles.logoutBtn} onPress={handleLogout}>
            <View style={styles.logoutIcon}>
              <MaterialIcons name="logout" size={24} color={theme.colors.error} />
@@ -100,7 +131,14 @@ const createStyles = (theme: any) => StyleSheet.create({
   menuItemTextContainer: { flex: 1 },
   menuItemTitle: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text, marginBottom: 2 },
   menuItemSubtitle: { fontSize: 12, color: theme.colors.mutedText },
+  appearanceCard: { backgroundColor: theme.colors.surfaceLowest, padding: 16, borderRadius: 16, marginBottom: 32, borderWidth: 1, borderColor: theme.colors.surfaceHighest },
+  appearanceHeading: { flexDirection: 'row', alignItems: 'center' },
+  modeOptions: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  modeOption: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.surfaceHighest, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  modeOptionActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  modeOptionText: { color: theme.colors.primary, fontSize: 14, fontWeight: 'bold' },
+  modeOptionTextActive: { color: theme.colors.surfaceLowest },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.errorContainer, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(186, 26, 26, 0.1)' },
-  logoutIcon: { width: 48, height: 48, borderRadius: 12, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+  logoutIcon: { width: 48, height: 48, borderRadius: 12, backgroundColor: theme.colors.surfaceLowest, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
   logoutText: { fontSize: 16, fontWeight: 'bold', color: theme.colors.error }
 });

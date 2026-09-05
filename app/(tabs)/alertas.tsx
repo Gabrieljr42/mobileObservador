@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, FlatList, ActivityIndicator, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { useAppTheme } from '../../src/theme';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -88,7 +88,7 @@ export default function Alertas() {
     <View style={styles.alertCard}>
       <View style={styles.alertHeader}>
         <Text style={styles.alertName}>{item.name}</Text>
-        <Pressable onPress={() => toggleAlert(item)}>
+        <Pressable style={styles.alertToggle} onPress={() => toggleAlert(item)} hitSlop={8} accessibilityRole="switch" accessibilityState={{ checked: !!item.active }}>
           <MaterialIcons name={item.active ? "toggle-on" : "toggle-off"} size={32} color={item.active ? theme.colors.primary : theme.colors.mutedText} />
         </Pressable>
       </View>
@@ -126,12 +126,32 @@ export default function Alertas() {
               {isCreating ? (
                 <View style={styles.createCard}>
                   <Text style={styles.createTitle}>Novo Alerta</Text>
-                  <TextInput style={styles.input} placeholder="Nome do alerta" value={newName} onChangeText={setNewName} />
-                  <TextInput style={styles.input} placeholder="Palavra-chave (ex: Assistente Social)" value={newKeyword} onChangeText={setNewKeyword} />
+                  <Text style={styles.fieldLabel}>1. Dê um nome para identificar o alerta</Text>
+                  <Text style={styles.fieldHint}>Ex.: Concursos de Assistente Social</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Nome do alerta"
+                    placeholderTextColor={theme.colors.mutedText}
+                    value={newName}
+                    onChangeText={setNewName}
+                    accessibilityLabel="Nome do alerta"
+                    accessibilityHint="Use um nome para reconhecer este alerta depois"
+                  />
+                  <Text style={styles.fieldLabel}>2. O que deve disparar o alerta?</Text>
+                  <Text style={styles.fieldHint}>Informe um cargo ou palavra-chave dos concursos.</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex.: Assistente Social"
+                    placeholderTextColor={theme.colors.mutedText}
+                    value={newKeyword}
+                    onChangeText={setNewKeyword}
+                    accessibilityLabel="Cargo ou palavra-chave"
+                    accessibilityHint="Digite o cargo ou termo que será procurado"
+                  />
                   <View style={styles.createActions}>
-                    <Pressable style={[styles.createBtn, { backgroundColor: theme.colors.surfaceHighest }]} onPress={() => setIsCreating(false)}><Text>Cancelar</Text></Pressable>
+                    <Pressable style={styles.cancelBtn} onPress={() => setIsCreating(false)}><Text style={styles.cancelBtnText}>Cancelar</Text></Pressable>
                     <Pressable style={styles.createBtn} onPress={handleCreate} disabled={saving}>
-                      {saving ? <ActivityIndicator size="small" color="white" /> : <Text style={styles.createBtnText}>Salvar</Text>}
+                      {saving ? <ActivityIndicator size="small" color={theme.colors.surfaceLowest} /> : <Text style={styles.createBtnText}>Salvar alerta</Text>}
                     </Pressable>
                   </View>
                 </View>
@@ -157,7 +177,8 @@ const createStyles = (theme: any) => StyleSheet.create({
   content: { padding: 24 },
   alertCard: { backgroundColor: theme.colors.surfaceLowest, padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: theme.colors.surfaceHighest },
   alertHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  alertName: { fontSize: 18, fontWeight: 'bold', color: theme.colors.primary },
+  alertName: { flex: 1, flexShrink: 1, paddingRight: 8, fontSize: 18, fontWeight: 'bold', color: theme.colors.primary },
+  alertToggle: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   alertMeta: { marginBottom: 16 },
   metaLabel: { fontSize: 14, color: theme.colors.mutedText },
   metaValue: { fontWeight: 'bold', color: theme.colors.text },
@@ -165,10 +186,14 @@ const createStyles = (theme: any) => StyleSheet.create({
   deleteBtnText: { color: theme.colors.error, fontSize: 14, fontWeight: 'bold' },
   addBtn: { backgroundColor: theme.colors.tertiaryContainer, padding: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   addBtnText: { color: theme.colors.onTertiaryContainer, fontSize: 16, fontWeight: 'bold' },
-  createCard: { backgroundColor: theme.colors.surfaceHighest, padding: 16, borderRadius: 12 },
-  createTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
-  input: { backgroundColor: theme.colors.surfaceLowest, padding: 12, borderRadius: 8, marginBottom: 12 },
+  createCard: { backgroundColor: theme.colors.surfaceLow, padding: 16, borderRadius: 12 },
+  createTitle: { fontSize: 20, fontWeight: 'bold', color: theme.colors.primary, marginBottom: 20 },
+  fieldLabel: { fontSize: 13, fontWeight: 'bold', color: theme.colors.text, marginBottom: 3 },
+  fieldHint: { fontSize: 12, color: theme.colors.mutedText, marginBottom: 8, lineHeight: 17 },
+  input: { backgroundColor: theme.colors.surfaceLowest, borderWidth: 1, borderColor: theme.colors.surfaceHighest, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 8, marginBottom: 18, color: theme.colors.text, fontSize: 16 },
   createActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
   createBtn: { backgroundColor: theme.colors.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
-  createBtnText: { color: 'white', fontWeight: 'bold' }
+  createBtnText: { color: theme.colors.surfaceLowest, fontWeight: 'bold' },
+  cancelBtn: { backgroundColor: theme.colors.surfaceHighest, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+  cancelBtnText: { color: theme.colors.text, fontWeight: 'bold' },
 });

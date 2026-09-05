@@ -3,15 +3,36 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../src/providers/AuthProvider';
 import { useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
-import { useAppTheme } from '../src/theme';
+import { AppState, Platform, View, ActivityIndicator } from 'react-native';
+import { ThemeProvider, useAppTheme } from '../src/theme';
 import { StatusBar } from 'expo-status-bar';
+import * as NavigationBar from 'expo-navigation-bar';
 
 function RootLayoutNav() {
   const theme = useAppTheme();
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const hideNavigationBar = async () => {
+      try {
+        await NavigationBar.setBehaviorAsync('overlay-swipe');
+        await NavigationBar.setVisibilityAsync('hidden');
+      } catch {
+        // Some Android devices restrict immersive mode; the app remains usable.
+      }
+    };
+
+    void hideNavigationBar();
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') void hideNavigationBar();
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     if (isLoading) return;
@@ -43,6 +64,7 @@ function RootLayoutNav() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="cadastro" options={{ headerShown: false }} />
       <Stack.Screen name="preferencias-iniciais" options={{ headerShown: false }} />
+      <Stack.Screen name="privacidade-seguranca" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="concurso/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
@@ -53,10 +75,17 @@ function RootLayoutNav() {
 export default function Layout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <RootLayoutNav />
-        <StatusBar style="auto" />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <RootLayoutNav />
+          <StatusBar style={useStatusBarStyle()} />
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
+}
+
+function useStatusBarStyle() {
+  const theme = useAppTheme();
+  return theme.isDark ? 'light' : 'dark';
 }

@@ -3,6 +3,7 @@ module.exports = ({ config }) => {
 
   return {
     ...config,
+    userInterfaceStyle: "light",
     android: {
       ...config.android,
       package: "com.gabrieljunior.observadorconcursos",

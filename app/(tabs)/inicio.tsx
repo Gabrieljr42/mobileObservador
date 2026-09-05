@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../../src/theme';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { fetchConcursos, getDemoConcursos } from '../../src/api/client';
 import { getRecentUpdates, getMyUpdates, ConcursoUpdate } from '../../src/api/updates';
 import { getNotifications } from '../../src/api/notifications';
@@ -33,7 +34,7 @@ export default function Dashboard() {
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const loadData = async (useDemo = false) => {
+  const loadData = useCallback(async (useDemo = false) => {
     setLoading(true);
     setError(null);
     try {
@@ -68,11 +69,13 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      void loadData();
+    }, [loadData])
+  );
 
   const handleLogout = async () => {
     setIsMenuOpen(false);

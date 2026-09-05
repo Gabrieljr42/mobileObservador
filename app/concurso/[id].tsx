@@ -16,6 +16,7 @@ import { PublicationCard } from '../../src/components/PublicationCard';
 import { TimelineItem } from '../../src/components/TimelineItem';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/providers/AuthProvider';
+import { formatDate } from '../../src/utils/formatters';
 
 export default function ConcursoDetalhe() {
   const theme = useAppTheme();
@@ -218,11 +219,11 @@ export default function ConcursoDetalhe() {
           <View style={styles.timeline}>
              <View style={styles.timelineItem}>
                 <Text style={styles.timelineLabel}>INSCRIÇÕES</Text>
-                <Text style={styles.timelineValue}>{concurso.inscricao_inicio} a {concurso.inscricao_fim}</Text>
+                <Text style={styles.timelineValue}>{formatDate(concurso.inscricao_inicio)} a {formatDate(concurso.inscricao_fim)}</Text>
              </View>
              <View style={styles.timelineItem}>
                 <Text style={styles.timelineLabel}>DATA DA PROVA</Text>
-                <Text style={styles.timelineValue}>{concurso.edital_data || 'N/I'}</Text>
+                <Text style={styles.timelineValue}>{concurso.edital_data ? formatDate(concurso.edital_data) : 'N/I'}</Text>
              </View>
           </View>
         </View>
@@ -277,11 +278,15 @@ export default function ConcursoDetalhe() {
               <Text style={styles.modalDesc}>Esse alerta avisará você sobre andamentos deste concurso ou concursos similares.</Text>
               
               <Text style={styles.inputLabel}>Nome do alerta</Text>
+              <Text style={styles.inputHint}>Escolha um nome fácil de reconhecer na tela “Meus Alertas”.</Text>
               <TextInput
                 style={styles.modalInput}
                 value={alertName}
                 onChangeText={setAlertName}
                 placeholder="Ex: Concurso da Prefeitura"
+                placeholderTextColor={theme.colors.mutedText}
+                accessibilityLabel="Nome do alerta"
+                accessibilityHint="Digite um nome para identificar o alerta"
               />
 
               <View style={styles.modalActions}>
@@ -343,6 +348,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: theme.colors.primary },
   modalDesc: { fontSize: 14, color: theme.colors.mutedText, marginBottom: 24, lineHeight: 20 },
   inputLabel: { fontSize: 12, fontWeight: 'bold', color: theme.colors.mutedText, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 1 },
+  inputHint: { fontSize: 12, color: theme.colors.mutedText, lineHeight: 17, marginBottom: 8 },
   modalInput: { backgroundColor: theme.colors.surfaceHighest, padding: 16, borderRadius: 12, fontSize: 16, color: theme.colors.text, marginBottom: 24 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
   modalCancelBtn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, backgroundColor: theme.colors.surfaceHighest },
