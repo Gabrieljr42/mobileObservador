@@ -1,3 +1,4 @@
+import { useSyncRevision } from '../src/sync/revision';
 import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { useAppTheme } from '../src/theme';
 import { EmptyState } from '../src/components/EmptyState';
@@ -10,18 +11,22 @@ import { LoadingState } from '../src/components/LoadingState';
 import { ErrorState } from '../src/components/ErrorState';
 import { useRouter } from 'expo-router';
 import { formatDate, formatDatesInText } from '../src/utils/formatters';
+import { useAuth } from '../src/providers/AuthProvider';
 
 export default function Notificacoes() {
+  const syncRevision = useSyncRevision();
   const theme = useAppTheme();
   const styles = createStyles(theme);
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { enablePushNotifications } = useAuth();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [enablingPush, setEnablingPush] = useState(false);
 
   const loadNotifs = async () => {
     setLoading(true);
@@ -38,7 +43,7 @@ export default function Notificacoes() {
 
   useEffect(() => {
     loadNotifs();
-  }, []);
+  }, [syncRevision]);
 
   const markAsRead = async (id: number) => {
     try {
@@ -76,6 +81,31 @@ export default function Notificacoes() {
       Alert.alert('Erro', 'Não foi possível sincronizar os dados agora.');
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleEnablePush = async () => {
+    if (enablingPush) return;
+    setEnablingPush(true);
+    try {
+      const result = await enablePushNotifications();
+      if (result.status === 'registered') {
+        Alert.alert('Notificações ativadas', 'Você receberá alertas neste aparelho quando houver novidades.');
+      } else if (result.status === 'permission_denied') {
+        Alert.alert('Permissão não concedida', 'Ative as notificações nas configurações do aparelho para receber alertas.');
+      } else if (result.status === 'unsupported') {
+        Alert.alert('Indisponível neste ambiente', 'Push nativo funciona somente no aplicativo Android ou iOS.');
+      } else if (result.status === 'expo_go') {
+        Alert.alert('Development build necessário', 'Push nativo não é suportado no Expo Go. Instale um development build para ativar esta função.');
+      } else if (result.status === 'missing_project_id') {
+        Alert.alert('Configuração pendente', 'Este ambiente ainda não configurou o projeto Expo para push.');
+      } else if (result.status === 'pending_revocation') {
+        Alert.alert('Revogação pendente', 'A sessão anterior ainda precisa revogar um dispositivo. Tente novamente quando estiver conectado.');
+      } else {
+        Alert.alert('Não foi possível ativar', 'Tente novamente quando o aplicativo estiver conectado.');
+      }
+    } finally {
+      setEnablingPush(false);
     }
   };
 
@@ -126,6 +156,10 @@ export default function Notificacoes() {
            <Pressable style={[styles.actionBtn, syncing && styles.actionBtnDisabled]} onPress={handleTestSync} disabled={syncing || markingAll} accessibilityRole="button">
              {syncing ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <MaterialIcons name="sync" size={20} color={theme.colors.primary} />}
              <Text style={styles.actionBtnText}>Sincronizar tudo</Text>
+           </Pressable>
+           <Pressable style={[styles.actionBtn, enablingPush && styles.actionBtnDisabled]} onPress={handleEnablePush} disabled={enablingPush || syncing || markingAll} accessibilityRole="button">
+             {enablingPush ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <MaterialIcons name="notifications-active" size={20} color={theme.colors.primary} />}
+             <Text style={styles.actionBtnText}>Ativar push</Text>
            </Pressable>
         </View>
       </View>

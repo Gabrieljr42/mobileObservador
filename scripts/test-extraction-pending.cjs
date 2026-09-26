@@ -1,0 +1,18 @@
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const assert=require('node:assert/strict');
+const ts=require('typescript');
+const exportsObject={};
+const source=fs.readFileSync(path.join(__dirname,'../src/utils/extractionPending.ts'),'utf8');
+vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:exportsObject});
+const reason=exportsObject.extractionPendingReason;
+const comparison={field_name:'cargos',tenderproof_value:null};
+assert.match(reason('unreadable',undefined,comparison),/não significa que a informação esteja ausente/);
+assert.match(reason('valid',{state:'failed',reason:'Tabela ilegível'},comparison),/Tabela ilegível/);
+assert.equal(reason('valid',{state:'unknown'},comparison),null);
+assert.equal(reason('unreadable',{state:'supported'},comparison),null);
+assert.equal(reason('unreadable',{state:'conflict'},comparison),null);
+assert.equal(reason('unreadable',undefined,{...comparison,tenderproof_value:'valor existente'}),null);
+assert.match(reason('valid',undefined,{...comparison,tenderproof_state:'failed'}),/Extração pendente/);
+console.log('PASS: unreadable historical data, failed extraction, conflicts and supported values remain distinct');

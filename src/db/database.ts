@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { withLocalTransaction } from './transaction';
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -8,6 +9,7 @@ export type OutboxOperation = {
   entity_key: string | null;
   payload: string | null;
   created_at: string;
+  owner_user_id: number | null;
 };
 
 export const getDb = async (): Promise<SQLite.SQLiteDatabase> => {
@@ -65,13 +67,15 @@ export const getDb = async (): Promise<SQLite.SQLiteDatabase> => {
 
         CREATE TABLE IF NOT EXISTS favorites (
           concurso_id INTEGER PRIMARY KEY NOT NULL,
-          data TEXT NOT NULL
+          data TEXT NOT NULL,
+          owner_user_id INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS alerts (
           local_id INTEGER PRIMARY KEY NOT NULL,
           remote_id INTEGER,
-          data TEXT NOT NULL
+          data TEXT NOT NULL,
+          owner_user_id INTEGER
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_remote_id ON alerts(remote_id) WHERE remote_id IS NOT NULL;
 
@@ -91,10 +95,21 @@ export const getDb = async (): Promise<SQLite.SQLiteDatabase> => {
           op TEXT NOT NULL,
           entity_key TEXT,
           payload TEXT,
-          created_at TEXT NOT NULL
+          created_at TEXT NOT NULL,
+          owner_user_id INTEGER
         );
         CREATE INDEX IF NOT EXISTS idx_outbox_created_at ON outbox(created_at, id);
       `);
+      // Ownership columns were added after the first pilot schema was created.
+      // SQLite has no IF NOT EXISTS form for ALTER TABLE, so tolerate the
+      // already-migrated case.
+      for (const statement of [
+        'ALTER TABLE favorites ADD COLUMN owner_user_id INTEGER',
+        'ALTER TABLE alerts ADD COLUMN owner_user_id INTEGER',
+        'ALTER TABLE outbox ADD COLUMN owner_user_id INTEGER',
+      ]) {
+        try { await db.execAsync(statement); } catch { /* column exists */ }
+      }
       return db;
     })().catch(error => {
       dbPromise = null;
@@ -122,6 +137,30 @@ export const setMetadata = async (key: string, value: string | null) => {
   );
 };
 
+export const getActiveUserId = async (): Promise<number | null> => {
+  const value = await getMetadata('active_user_id');
+  const id = value == null ? NaN : Number(value);
+  return Number.isFinite(id) ? id : null;
+};
+
+/** Switches the local account boundary without exposing A's private rows to B. */
+export const setActiveUser = async (userId: number | null) => {
+  const db = await getDb();
+  const previous = await getActiveUserId();
+  if (userId != null && previous != null && previous !== userId) {
+    await withLocalTransaction(db, async transaction => {
+      await transaction.execAsync('DELETE FROM favorites; DELETE FROM alerts; DELETE FROM outbox; DELETE FROM preferences; DELETE FROM notifications;');
+    });
+  }
+  if (userId != null) {
+    // Adopt rows created before this migration only on the first account bind.
+    await db.runAsync('UPDATE favorites SET owner_user_id = ? WHERE owner_user_id IS NULL', userId);
+    await db.runAsync('UPDATE alerts SET owner_user_id = ? WHERE owner_user_id IS NULL', userId);
+    await db.runAsync('UPDATE outbox SET owner_user_id = ? WHERE owner_user_id IS NULL', userId);
+  }
+  await setMetadata('active_user_id', userId == null ? null : String(userId));
+};
+
 export const getMetadata = async (key: string): Promise<string | null> => {
   const db = await getDb();
   const row = await db.getFirstAsync<{ value: string | null }>('SELECT value FROM metadata WHERE key = ?', key);
@@ -140,42 +179,57 @@ export const getJsonRow = async <T>(sql: string, ...params: any[]): Promise<T | 
   return parse<T>(row?.data);
 };
 
-export const queueOutbox = async (op: string, entityKey?: string | number | null, payload?: unknown) => {
-  const db = await getDb();
+export const queueOutbox = async (op: string, entityKey?: string | number | null, payload?: unknown, transaction?: SQLite.SQLiteDatabase) => {
+  const db = transaction ?? await getDb();
+  const activeUserId = await getActiveUserId();
   await db.runAsync(
-    'INSERT INTO outbox(op, entity_key, payload, created_at) VALUES (?, ?, ?, ?)',
+    'INSERT INTO outbox(op, entity_key, payload, created_at, owner_user_id) VALUES (?, ?, ?, ?, ?)',
     op,
     entityKey == null ? null : String(entityKey),
     payload === undefined ? null : JSON.stringify(payload),
     new Date().toISOString(),
+    activeUserId,
   );
 };
 
 export const getOutbox = async (): Promise<OutboxOperation[]> => {
   const db = await getDb();
-  return db.getAllAsync<OutboxOperation>('SELECT * FROM outbox ORDER BY id ASC');
+  const userId = await getActiveUserId();
+  return userId == null
+    ? db.getAllAsync<OutboxOperation>('SELECT * FROM outbox WHERE owner_user_id IS NULL ORDER BY id ASC')
+    : db.getAllAsync<OutboxOperation>('SELECT * FROM outbox WHERE owner_user_id = ? ORDER BY id ASC', userId);
 };
 
-export const deleteOutboxItem = async (id: number) => {
+export const deleteOutboxItem = async (id: number, ownerUserId?: number | null) => {
   const db = await getDb();
-  await db.runAsync('DELETE FROM outbox WHERE id = ?', id);
+  const owner = ownerUserId === undefined ? await getActiveUserId() : ownerUserId;
+  await db.runAsync(
+    'DELETE FROM outbox WHERE id = ? AND (owner_user_id IS ? OR owner_user_id = ?)',
+    id, owner, owner,
+  );
 };
 
-export const deleteOutboxForEntity = async (ops: string[], entityKey: string | number) => {
-  const db = await getDb();
+export const deleteOutboxForEntity = async (ops: string[], entityKey: string | number, transaction?: SQLite.SQLiteDatabase) => {
+  const db = transaction ?? await getDb();
   if (!ops.length) return;
+  const owner = await getActiveUserId();
   const placeholders = ops.map(() => '?').join(',');
   await db.runAsync(
-    `DELETE FROM outbox WHERE entity_key = ? AND op IN (${placeholders})`,
+    `DELETE FROM outbox WHERE entity_key = ? AND op IN (${placeholders}) AND (owner_user_id IS ? OR owner_user_id = ?)`,
     String(entityKey),
     ...ops,
+    owner, owner,
   );
 };
 
 export const applyCheckpoint = async (checkpoint: any) => {
   const db = await getDb();
 
-  await db.withExclusiveTransactionAsync(async transaction => {
+  await withLocalTransaction(db, async transaction => {
+    const pending = await transaction.getFirstAsync<{ count: number }>('SELECT COUNT(*) AS count FROM outbox');
+    if (pending && pending.count > 0) {
+      throw new Error('Há alterações locais aguardando envio. Sincronize novamente para preservar suas ações.');
+    }
     await transaction.execAsync(`
       DELETE FROM concursos;
       DELETE FROM publications;
@@ -241,17 +295,19 @@ export const applyCheckpoint = async (checkpoint: any) => {
     for (const favorite of checkpoint.favorites || []) {
       if (!favorite?.concurso_id || !favorite?.concurso) continue;
       await transaction.runAsync(
-        'INSERT INTO favorites(concurso_id, data) VALUES (?, ?)',
+        'INSERT INTO favorites(concurso_id, data, owner_user_id) VALUES (?, ?, ?)',
         favorite.concurso_id,
         JSON.stringify(favorite.concurso),
+        await getActiveUserId(),
       );
     }
     for (const item of checkpoint.alerts || []) {
       await transaction.runAsync(
-        'INSERT INTO alerts(local_id, remote_id, data) VALUES (?, ?, ?)',
+        'INSERT INTO alerts(local_id, remote_id, data, owner_user_id) VALUES (?, ?, ?, ?)',
         item.id,
         item.id,
         JSON.stringify(item),
+        await getActiveUserId(),
       );
     }
     for (const item of checkpoint.notifications || []) {
@@ -278,7 +334,7 @@ export const applyCheckpoint = async (checkpoint: any) => {
 
 export const clearLocalData = async () => {
   const db = await getDb();
-  await db.withExclusiveTransactionAsync(async transaction => {
+  await withLocalTransaction(db, async transaction => {
     await transaction.execAsync(`
       DELETE FROM concursos;
       DELETE FROM publications;

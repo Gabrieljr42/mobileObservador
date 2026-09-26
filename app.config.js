@@ -13,6 +13,7 @@ module.exports = ({ config }) => {
       "expo-sqlite",
       "expo-background-task",
       "expo-secure-store",
+      "expo-notifications",
     ])),
     extra: {
       ...config.extra,

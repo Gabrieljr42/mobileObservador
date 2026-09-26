@@ -1,9 +1,10 @@
-import { View, Text, StyleSheet, FlatList, Pressable } from 'react-native';
+import { useSyncRevision } from '../../src/sync/revision';
+import { View, Text, StyleSheet, FlatList, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Concurso } from '../../src/types/concurso';
-import { getFavorites as getRealFavorites } from '../../src/api/favorites';
+import { getFavorites as getRealFavorites, removeFavorite } from '../../src/api/favorites';
 import { useAppTheme } from '../../src/theme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ConcursoCard } from '../../src/components/ConcursoCard';
@@ -13,6 +14,7 @@ import { LoadingState } from '../../src/components/LoadingState';
 import { ErrorState } from '../../src/components/ErrorState';
 
 export default function Salvos() {
+  const syncRevision = useSyncRevision();
   const theme = useAppTheme();
   const styles = createStyles(theme);
 
@@ -26,7 +28,23 @@ export default function Salvos() {
     setLoading(true);
     setError(null);
     try {
-      const favs = await getRealFavorites();
+      // The first screen can race the initial SQLite checkpoint transaction.
+      // A short read retry keeps a transient lock from becoming a visible error.
+      let favs: Concurso[] | undefined;
+      let lastError: unknown;
+      // SQLite can hold the read briefly while the initial checkpoint commits.
+      // Retry the read itself; only surface an error after the transaction
+      // window has closed and all attempts failed.
+      for (const delay of [0, 120, 300, 600]) {
+        if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+        try {
+          favs = await getRealFavorites();
+          break;
+        } catch (cause) {
+          lastError = cause;
+        }
+      }
+      if (!favs) throw lastError || new Error('Favoritos indisponíveis');
       setFavorites(favs);
     } catch (e: any) {
       setError(e.response?.data?.detail || 'Erro ao carregar favoritos.');
@@ -38,11 +56,20 @@ export default function Salvos() {
   useFocusEffect(
     useCallback(() => {
       loadFavs();
-    }, [])
+    }, [syncRevision])
   );
 
+  const removeSaved = async (id: number) => {
+    try {
+      await removeFavorite(id);
+      setFavorites(current => current.filter(item => item.id !== id));
+    } catch {
+      Alert.alert('Erro', 'Não foi possível remover dos salvos.');
+    }
+  };
+
   const renderItem = ({ item }: { item: Concurso }) => (
-    <ConcursoCard item={item} inSaved={true} />
+    <ConcursoCard item={item} inSaved={true} onRemoveFavorite={removeSaved} />
   );
 
   return (

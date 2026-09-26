@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { AppState } from 'react-native';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { AppState, Platform } from 'react-native';
 import axios from 'axios';
 import { login as loginApi, register as registerApi } from '../api/auth';
 import {
@@ -14,10 +14,11 @@ import {
   setSessionActive,
   verifyOfflineAccount,
 } from '../storage/auth';
-import { getDb } from '../db/database';
+import { getDb, setActiveUser } from '../db/database';
 import { localUser } from '../db/repositories';
 import { registerBackgroundSyncAsync } from '../sync/background';
 import { syncIfDue, syncNow as runSyncNow } from '../sync/syncService';
+import { queuePushRevocation, registerPushNotifications, revokePushNotifications, PushRegistrationResult } from '../push/pushRegistration';
 
 type User = {
   id: number;
@@ -31,11 +32,14 @@ type AuthContextType = {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  initializationError: string | null;
+  retryInitialization: () => Promise<void>;
   login: (e: string, p: string) => Promise<void>;
   register: (n: string, e: string, p: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   syncNow: () => Promise<void>;
+  enablePushNotifications: () => Promise<PushRegistrationResult>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -44,9 +48,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setTokenState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [initializationError, setInitializationError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const init = async () => {
+  const initialize = useCallback(async () => {
+      setIsLoading(true);
+      setInitializationError(null);
       try {
         await getDb();
         const active = await isSessionActive();
@@ -55,21 +61,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setTokenState(storedToken);
 
         if (active && remembered) {
+          await setActiveUser(Number(remembered.id));
           setUser(remembered as User);
           await localUser.set(remembered);
           await registerBackgroundSyncAsync().catch(() => false);
-          void syncIfDue(false);
+          // Startup is also the reconnect signal: web may keep navigator.onLine
+          // true across an API outage, so no online event is guaranteed.
+          void syncIfDue(true);
         }
+      } catch (error) {
+        // Keep the user-facing message stable while retaining the concrete
+        // storage/worker failure for local diagnosis (especially on web).
+        console.error('[AuthProvider] initialization failed', error);
+        setInitializationError('Não foi possível abrir os dados salvos neste aparelho. Feche outras abas do aplicativo e tente novamente.');
       } finally {
         setIsLoading(false);
       }
-    };
-    void init();
   }, []);
+
+  useEffect(() => { void initialize(); }, [initialize]);
+
+  const retryInitialization = async () => {
+    // Failed web VFS initialization leaves the worker unusable; a new page
+    // releases it and creates a fresh worker without deleting persisted data.
+    if (Platform.OS === 'web') {
+      window.location.reload();
+      return;
+    }
+    await initialize();
+  };
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active' && user) void syncIfDue(false);
+      if (state === 'active' && user) void syncIfDue(true);
     });
     return () => subscription.remove();
   }, [user]);
@@ -86,6 +110,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await saveToken(response.access_token);
     if (response.refresh_token) await saveRefreshToken(response.refresh_token);
     await rememberOfflineAccount(email, password, response.user);
+    await setActiveUser(Number(response.user.id));
     await setSessionActive(true);
     await localUser.set(response.user);
     setTokenState(response.access_token);
@@ -111,6 +136,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       throw error;
     }
     await setSessionActive(true);
+    await setActiveUser(Number(offlineUser.id));
     await localUser.set(offlineUser);
     setUser(offlineUser as User);
     setTokenState(await getStoredToken());
@@ -123,10 +149,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = async () => {
+    // Capture identity/credential before clearing the session. Revocation is
+    // best effort and must never delay local logout or use a future account's token.
+    const logoutUserId = user?.id;
+    const logoutToken = await getStoredToken();
+    if (logoutUserId) await queuePushRevocation(logoutUserId).catch(() => undefined);
+    void revokePushNotifications({ userId: logoutUserId, accessToken: logoutToken }).catch(() => undefined);
     await closeLocalSession();
     await clearToken();
     setTokenState(null);
     setUser(null);
+  };
+
+  const enablePushNotifications = async () => {
+    if (!user) return { status: 'failed' as const, reason: 'not_authenticated' };
+    return registerPushNotifications({ userId: user.id, accessToken: await getStoredToken() || undefined });
   };
 
   const refreshUser = async () => {
@@ -150,11 +187,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       token,
       isAuthenticated: !!user,
       isLoading,
+      initializationError,
+      retryInitialization,
       login,
       register,
       logout,
       refreshUser,
       syncNow: forceSync,
+      enablePushNotifications,
     }}>
       {children}
     </AuthContext.Provider>

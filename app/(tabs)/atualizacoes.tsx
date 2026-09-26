@@ -1,3 +1,4 @@
+import { useSyncRevision } from '../../src/sync/revision';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, useCallback } from 'react';
@@ -12,6 +13,7 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AtualizacoesScreen() {
+  const syncRevision = useSyncRevision();
   const router = useRouter();
   const theme = useAppTheme();
   const styles = createStyles(theme);
@@ -49,7 +51,7 @@ export default function AtualizacoesScreen() {
 
   useEffect(() => {
     fetchUpdates();
-  }, [user]);
+  }, [user, syncRevision]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

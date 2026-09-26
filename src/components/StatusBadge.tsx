@@ -1,11 +1,26 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppTheme } from '../theme';
+import type { RegistrationSituation } from '../utils/registrationStatus';
 
-export function StatusBadge({ status }: { status: string | undefined | null }) {
+const derivedLabels: Record<Exclude<RegistrationSituation, 'unknown'>, string> = {
+  open: 'INSCRIÇÕES ABERTAS',
+  upcoming: 'INSCRIÇÕES EM BREVE',
+  closed: 'ENCERRADO',
+};
+
+export function StatusBadge({
+  status,
+  situation,
+}: {
+  status: string | undefined | null;
+  situation?: RegistrationSituation;
+}) {
   const theme = useAppTheme();
   const styles = createStyles(theme);
 
-  const label = status || 'NÃO INFORMADO';
+  const label = situation && situation !== 'unknown'
+    ? derivedLabels[situation]
+    : status || 'NÃO INFORMADO';
   
   return (
     <View style={styles.badge}>

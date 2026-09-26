@@ -4,7 +4,24 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from '../theme';
 import { ConcursoVersion } from '../api/updates';
 import { getUpdateTypeConfig } from './UpdateTypeBadge';
-import { formatDate, formatDatesInText } from '../utils/formatters';
+import { formatDate, formatDatesInText, formatChangedValue } from '../utils/formatters';
+
+const changedFieldLabels: Record<string, string> = {
+  etapas_prova: 'Etapas da prova',
+  resultado_final_prazo: 'Prazo do resultado final',
+  entrega_titulos_prazo: 'Prazo da entrega de títulos',
+  inscricao_inicio: 'Início das inscrições',
+  inscricao_fim: 'Fim das inscrições',
+  prova_data: 'Data da prova',
+  cargos: 'Cargos e condições',
+  vagas: 'Quantidade de seleções',
+  salario_min: 'Remuneração mínima',
+  salario_max: 'Remuneração máxima',
+  taxa: 'Taxa de inscrição',
+  link_edital: 'Link do edital',
+  edital_pdf_text_hash: 'Conteúdo do edital',
+  content_hash: 'Conteúdo publicado',
+};
 
 export function TimelineItem({ version, isLast }: { version: ConcursoVersion, isLast: boolean }) {
   const theme = useAppTheme();
@@ -32,6 +49,15 @@ export function TimelineItem({ version, isLast }: { version: ConcursoVersion, is
             <Text style={[styles.type, { color: config.color }]}>{config.label}</Text>
           </View>
           <Text style={styles.summary}>{summary}</Text>
+          {version.changed_fields && Object.entries(version.changed_fields).map(([field, raw]) => {
+            const change = raw && typeof raw === 'object' ? raw as { old?: unknown; new?: unknown; previous?: unknown; reason?: string } : { new: raw };
+            const oldValue = 'old' in change ? change.old : change.previous;
+            return <View key={field} style={styles.changeRow}>
+              <Text style={styles.changeLabel}>{changedFieldLabels[field] ?? field}</Text>
+              <Text style={styles.changeValue}>{formatChangedValue(oldValue)} → {formatChangedValue(change.new)}</Text>
+              {!!change.reason && <Text style={styles.changeReason}>{change.reason}</Text>}
+            </View>;
+          })}
         </View>
       </View>
     </View>
@@ -91,5 +117,9 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 14,
     color: theme.colors.text,
     lineHeight: 20,
-  }
+  },
+  changeRow: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.colors.surfaceHighest },
+  changeLabel: { fontSize: 12, fontWeight: '800', color: theme.colors.primary, marginBottom: 3 },
+  changeValue: { fontSize: 13, color: theme.colors.text, lineHeight: 19 },
+  changeReason: { fontSize: 12, color: theme.colors.mutedText, lineHeight: 17, marginTop: 3 },
 });

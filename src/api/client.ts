@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { getStoredToken } from '../storage/auth';
-import { Concurso } from '../types/concurso';
+import { Concurso, ConcursoReviewStatus } from '../types/concurso';
 import { localConcursos } from '../db/repositories';
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.observador.tech';
@@ -33,6 +33,11 @@ export const fetchConcursoById = async (id: number): Promise<Concurso> => {
     throw new Error('Concurso ainda não existe no banco local. Faça uma sincronização quando o servidor estiver disponível.');
   }
   return concurso;
+};
+
+export const fetchConcursoReviewStatus = async (id: number): Promise<ConcursoReviewStatus> => {
+  const response = await apiClient.get<ConcursoReviewStatus>(`/concursos/${id}/review-status`, { timeout: 3000 });
+  return response.data;
 };
 
 // Kept for compatibility with the existing screens; real data only comes from SQLite.

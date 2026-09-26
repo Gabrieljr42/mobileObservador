@@ -1,3 +1,4 @@
+import { useSyncRevision } from '../../src/sync/revision';
 import { View, Text, StyleSheet, FlatList, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -11,6 +12,8 @@ import { ErrorState } from '../../src/components/ErrorState';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { isRegistrationClosed, isRegistrationOpen } from '../../src/utils/registrationStatus';
+import { concursoCargoNames, matchesCargo } from '../../src/utils/searchFilters';
 
 type SearchFilters = {
   status: 'open' | 'closed' | null;
@@ -37,18 +40,10 @@ const normalize = (value?: string | null) =>
 
 const uniqueOptions = (values: Array<string | null | undefined>) =>
   Array.from(new Set(values.map(value => value?.trim()).filter(Boolean) as string[]))
-    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-    .slice(0, 8);
-
-const statusMatches = (status: string | null | undefined, expected: 'open' | 'closed') => {
-  const normalizedStatus = normalize(status);
-  if (expected === 'open') {
-    return normalizedStatus.includes('abert') || normalizedStatus.includes('inscric');
-  }
-  return normalizedStatus.includes('encerr') || normalizedStatus.includes('fechad') || normalizedStatus.includes('finaliz');
-};
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
 export default function Busca() {
+  const syncRevision = useSyncRevision();
   const theme = useAppTheme();
   const styles = createStyles(theme);
 
@@ -80,11 +75,11 @@ export default function Busca() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [syncRevision]);
 
   const filterOptions = useMemo(() => ({
     bancas: uniqueOptions(concursos.map(concurso => concurso.banca)),
-    cargos: uniqueOptions(concursos.map(concurso => concurso.cargo)),
+    cargos: uniqueOptions(concursos.flatMap(concurso => concursoCargoNames(concurso))),
     ufs: uniqueOptions(concursos.map(concurso => concurso.uf)),
     areas: uniqueOptions(concursos.map(concurso => concurso.area)),
   }), [concursos]);
@@ -96,6 +91,7 @@ export default function Busca() {
       concurso.orgao,
       concurso.banca,
       concurso.cargo,
+      ...concursoCargoNames(concurso),
       concurso.area,
       concurso.cidade,
       concurso.uf,
@@ -103,13 +99,15 @@ export default function Busca() {
     ];
 
     const matchesQuery = !term || searchableFields.some(field => normalize(field).includes(term));
-    const matchesStatus = !filters.status || statusMatches(concurso.status, filters.status);
+    const matchesStatus = !filters.status || (filters.status === 'open'
+      ? isRegistrationOpen(concurso)
+      : isRegistrationClosed(concurso));
     const matchesBanca = !filters.banca || normalize(concurso.banca).includes(normalize(filters.banca));
-    const matchesCargo = !filters.cargo || normalize(concurso.cargo).includes(normalize(filters.cargo));
+    const cargoMatches = matchesCargo(concurso, filters.cargo);
     const matchesUf = !filters.uf || normalize(concurso.uf) === normalize(filters.uf);
     const matchesArea = !filters.area || normalize(concurso.area) === normalize(filters.area);
 
-    return matchesQuery && matchesStatus && matchesBanca && matchesCargo && matchesUf && matchesArea;
+    return matchesQuery && matchesStatus && matchesBanca && cargoMatches && matchesUf && matchesArea;
   }), [concursos, filters, query]);
 
   const activeFilterCount = [filters.status, filters.banca, filters.cargo, filters.uf, filters.area]
@@ -309,7 +307,7 @@ export default function Busca() {
         <View style={styles.resultsHeader}>
           <View>
             <Text style={styles.resultsLabel}>RESULTADOS ENCONTRADOS</Text>
-            <Text style={styles.resultsCount}>{filtered.length} Vagas</Text>
+            <Text style={styles.resultsCount}>{filtered.length} Seleções</Text>
           </View>
           {activeFilterCount > 0 && <Text style={styles.activeFiltersText}>{activeFilterCount} filtro(s) ativo(s)</Text>}
         </View>

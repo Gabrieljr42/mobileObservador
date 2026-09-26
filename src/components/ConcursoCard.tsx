@@ -4,19 +4,24 @@ import { Concurso } from '../types/concurso';
 import { useAppTheme } from '../theme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StatusBadge } from './StatusBadge';
+import { registrationSituation } from '../utils/registrationStatus';
+import { vagasImediatasCargo } from '../utils/cargos';
 
-export function ConcursoCard({ item, inSaved = false }: { item: Concurso, inSaved?: boolean }) {
+export function ConcursoCard({ item, inSaved = false, onRemoveFavorite }: { item: Concurso, inSaved?: boolean, onRemoveFavorite?: (id: number) => void }) {
   const theme = useAppTheme();
   const styles = createStyles(theme);
 
   const router = useRouter();
+  const cargoCounts = item.cargos?.map(vagasImediatasCargo) ?? [];
+  const hasUnknownCargoCount = cargoCounts.some(value => value == null);
+  const totalImmediateVacancies = cargoCounts.reduce<number>((total, value) => total + (value ?? 0), 0);
 
   return (
     <Pressable style={styles.card} onPress={() => router.push(`/concurso/${item.id}`)}>
       <View style={styles.cardHeader}>
         <View style={styles.headerLeft}>
            <View style={styles.badgeRow}>
-             <StatusBadge status={item.status} />
+             <StatusBadge status={item.status} situation={registrationSituation(item)} />
              {inSaved && <Text style={styles.orgLabel}>{item.orgao}</Text>}
            </View>
            <Text style={styles.cardTitle}>{item.titulo}</Text>
@@ -28,9 +33,14 @@ export function ConcursoCard({ item, inSaved = false }: { item: Concurso, inSave
         </View>
         
         {inSaved && (
-          <View style={styles.favBtn}>
+          <Pressable
+            style={styles.favBtn}
+            onPress={() => onRemoveFavorite?.(item.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`Remover ${item.titulo} dos salvos`}
+          >
              <MaterialIcons name="favorite" size={24} color={theme.colors.onTertiaryContainer} />
-          </View>
+          </Pressable>
         )}
       </View>
       
@@ -41,8 +51,12 @@ export function ConcursoCard({ item, inSaved = false }: { item: Concurso, inSave
              <Text style={styles.metaValue}>{item.banca || 'N/A'}</Text>
            </View>
            <View style={styles.metaItem}>
-             <Text style={styles.metaLabel}>Vagas</Text>
-             <Text style={styles.metaValue}>N/I</Text>
+             <Text style={styles.metaLabel}>Vagas nos cargos cadastrados</Text>
+             <Text style={styles.metaValue}>{item.cargos?.length
+               ? hasUnknownCargoCount
+                 ? 'Quantidade de vagas imediatas: ainda não confirmada'
+                 : `${totalImmediateVacancies}${item.cargos.some(cargo => cargo.cadastro_reserva) ? ' + CR' : ''}`
+               : 'Pendente de conferência'}</Text>
            </View>
            <View style={styles.metaItem}>
              <Text style={styles.metaLabel}>Local</Text>

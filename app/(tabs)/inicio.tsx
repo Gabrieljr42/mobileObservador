@@ -1,3 +1,4 @@
+import { useSyncRevision } from '../../src/sync/revision';
 import { View, Text, StyleSheet, ScrollView, Pressable, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../../src/theme';
@@ -18,6 +19,7 @@ import { useAuth } from '../../src/providers/AuthProvider';
 import { getSyncStatus } from '../../src/sync/syncService';
 
 export default function Dashboard() {
+  const syncRevision = useSyncRevision();
   const theme = useAppTheme();
   const styles = createStyles(theme);
 
@@ -74,7 +76,7 @@ export default function Dashboard() {
   useFocusEffect(
     useCallback(() => {
       void loadData();
-    }, [loadData])
+    }, [loadData, syncRevision])
   );
 
   const handleLogout = async () => {
@@ -198,6 +200,10 @@ export default function Dashboard() {
               <Pressable style={styles.drawerLink} onPress={() => navTo('/notificacoes')}>
                 <MaterialIcons name="notifications" size={24} color={theme.colors.primary} />
                 <Text style={styles.drawerLinkText}>Notificações</Text>
+              </Pressable>
+              <Pressable style={styles.drawerLink} onPress={() => navTo('/tenderproof')}>
+                <MaterialIcons name="verified" size={24} color={theme.colors.primary} />
+                <Text style={styles.drawerLinkText}>TenderProof (IBGP)</Text>
               </Pressable>
               <Pressable style={styles.drawerLink} onPress={() => navTo('/(tabs)/perfil')}>
                 <MaterialIcons name="person" size={24} color={theme.colors.primary} />

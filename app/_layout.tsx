@@ -3,14 +3,15 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../src/providers/AuthProvider';
 import { useEffect } from 'react';
-import { AppState, Platform, View, ActivityIndicator } from 'react-native';
+import { AppState, Platform, View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { ThemeProvider, useAppTheme } from '../src/theme';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
+import { subscribeToPushNotifications } from '../src/push/pushRegistration';
 
 function RootLayoutNav() {
   const theme = useAppTheme();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, initializationError, retryInitialization } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -35,7 +36,7 @@ function RootLayoutNav() {
   }, []);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || initializationError) return;
 
     const inTabsGroup = segments[0] === '(tabs)' || segments[0] === 'concurso';
     const isPreferencias = segments[0] === 'preferencias-iniciais';
@@ -47,7 +48,12 @@ function RootLayoutNav() {
       // A remembered local session does not require a server round-trip to boot.
       router.replace('/(tabs)/inicio');
     }
-  }, [isAuthenticated, isLoading, segments]);
+  }, [isAuthenticated, isLoading, initializationError, segments]);
+
+  useEffect(() => {
+    if (!isAuthenticated || Platform.OS === 'web') return;
+    return subscribeToPushNotifications(route => router.push(route as any));
+  }, [isAuthenticated, router]);
 
   if (isLoading) {
     return (
@@ -55,6 +61,16 @@ function RootLayoutNav() {
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
+  }
+
+  if (initializationError) {
+    return <View style={{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: theme.colors.surfaceLowest }}>
+      <Text accessibilityRole="header" style={{ fontSize: 22, color: theme.colors.primary }}>Dados salvos indisponíveis</Text>
+      <Text style={{ marginVertical: 16, color: theme.colors.primary }}>{initializationError}</Text>
+      <Pressable accessibilityRole="button" onPress={() => void retryInitialization()} style={{ padding: 16, backgroundColor: theme.colors.tertiaryContainer }}>
+        <Text style={{ color: theme.colors.onTertiaryContainer }}>Tentar novamente</Text>
+      </Pressable>
+    </View>;
   }
 
   return (
@@ -67,6 +83,7 @@ function RootLayoutNav() {
       <Stack.Screen name="privacidade-seguranca" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="concurso/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="tenderproof" options={{ headerShown: false }} />
       <Stack.Screen name="notificacoes" options={{ headerShown: false }} />
     </Stack>
   );

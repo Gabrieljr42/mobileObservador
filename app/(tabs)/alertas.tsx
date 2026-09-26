@@ -1,3 +1,4 @@
+import { useSyncRevision } from '../../src/sync/revision';
 import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { useAppTheme } from '../../src/theme';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -5,11 +6,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { getAlerts, createAlert, updateAlert, deleteAlert } from '../../src/api/alerts';
+import { getOutbox } from '../../src/db/database';
+import { mergePendingAlerts } from '../../src/utils/alertState';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LoadingState } from '../../src/components/LoadingState';
 import { ErrorState } from '../../src/components/ErrorState';
 
 export default function Alertas() {
+  const syncRevision = useSyncRevision();
   const theme = useAppTheme();
   const styles = createStyles(theme);
 
@@ -29,7 +33,8 @@ export default function Alertas() {
     setError(null);
     try {
       const data = await getAlerts();
-      setAlerts(data);
+      const pending = await getOutbox();
+      setAlerts(current => mergePendingAlerts(data, current, pending));
     } catch (e: any) {
       setError('Erro ao carregar alertas.');
     } finally {
@@ -40,14 +45,17 @@ export default function Alertas() {
   useFocusEffect(
     useCallback(() => {
       loadAlerts();
-    }, [])
+    }, [syncRevision])
   );
 
   const toggleAlert = async (alert: any) => {
+    const active = !alert.active;
+    setAlerts(current => current.map(a => a.id === alert.id ? { ...a, active } : a));
     try {
-      await updateAlert(alert.id, { active: !alert.active });
-      setAlerts(alerts.map(a => a.id === alert.id ? { ...a, active: !a.active } : a));
+      const updated = await updateAlert(alert.id, { active });
+      setAlerts(current => current.map(a => a.id === alert.id ? { ...a, active: updated.active ?? active } : a));
     } catch (e: any) {
+      setAlerts(current => current.map(a => a.id === alert.id ? { ...a, active: !active } : a));
       Alert.alert('Erro', 'Não foi possível alterar o alerta.');
     }
   };
@@ -88,7 +96,15 @@ export default function Alertas() {
     <View style={styles.alertCard}>
       <View style={styles.alertHeader}>
         <Text style={styles.alertName}>{item.name}</Text>
-        <Pressable style={styles.alertToggle} onPress={() => toggleAlert(item)} hitSlop={8} accessibilityRole="switch" accessibilityState={{ checked: !!item.active }}>
+        <Pressable
+          style={styles.alertToggle}
+          onPress={() => toggleAlert(item)}
+          hitSlop={8}
+          accessibilityRole="switch"
+          accessibilityLabel={`Ativar alerta ${item.name}`}
+          accessibilityState={{ checked: !!item.active }}
+          aria-checked={!!item.active}
+        >
           <MaterialIcons name={item.active ? "toggle-on" : "toggle-off"} size={32} color={item.active ? theme.colors.primary : theme.colors.mutedText} />
         </Pressable>
       </View>

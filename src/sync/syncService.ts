@@ -1,10 +1,12 @@
 import axios from 'axios';
+import { checkpointCommitted } from './revision';
 import { apiClient } from '../api/client';
 import { refreshAccessToken } from '../api/auth';
 import {
   applyCheckpoint,
   deleteOutboxItem,
   getDb,
+  getActiveUserId,
   getMetadata,
   getOutbox,
   setMetadata,
@@ -17,6 +19,10 @@ import {
 } from '../storage/auth';
 
 export const SYNC_INTERVAL_MS = 60 * 60 * 1000;
+// A failed transport must not suppress a pending local write for the whole
+// normal sync interval. This is intentionally short enough to recover after
+// an outage even when navigator.onLine never emits a transition.
+export const OUTBOX_RETRY_INTERVAL_MS = 60 * 1000;
 let running: Promise<SyncResult> | null = null;
 
 export type SyncResult = {
@@ -52,6 +58,13 @@ const syncOutbox = async () => {
   const items = await getOutbox();
 
   for (const item of items) {
+    // The queue snapshot may outlive a logout/login. Never let an item
+    // captured for A reach the API with B's token or mutate B's local rows.
+    const activeUserId = await getActiveUserId();
+    const itemOwner = item.owner_user_id == null ? null : Number(item.owner_user_id);
+    if (itemOwner !== activeUserId) {
+      throw new Error('Sessão alterada durante a sincronização; fila antiga preservada.');
+    }
     const payload = item.payload ? JSON.parse(item.payload) : {};
     try {
       switch (item.op) {
@@ -71,22 +84,34 @@ const syncOutbox = async () => {
           await apiClient.post('/me/notifications/read-all');
           break;
         case 'alert_create': {
-          const response = await apiClient.post('/me/alerts', payload);
           const localId = Number(item.entity_key);
+          // A create can be followed by an offline toggle before the first
+          // sync. Read the latest local state so the server receives the
+          // user's final choice even if the follow-up update is delayed.
+          const localRow = await db.getFirstAsync<{ data: string }>(
+            'SELECT data FROM alerts WHERE local_id = ? AND (owner_user_id IS ? OR owner_user_id = ?)',
+            localId, activeUserId, activeUserId,
+          );
+          const localData = localRow ? JSON.parse(localRow.data) : null;
+          const createPayload = localData
+            ? { ...payload, active: localData.active, only_open: localData.only_open }
+            : payload;
+          const response = await apiClient.post('/me/alerts', createPayload);
           const serverAlert = response.data;
           await db.runAsync(
-            'UPDATE alerts SET remote_id = ?, data = ? WHERE local_id = ?',
+            'UPDATE alerts SET remote_id = ?, data = ? WHERE local_id = ? AND (owner_user_id IS ? OR owner_user_id = ?)',
             serverAlert.id,
             JSON.stringify(serverAlert),
             localId,
+            activeUserId, activeUserId,
           );
           break;
         }
         case 'alert_update': {
           const localId = Number(item.entity_key);
           const row = await db.getFirstAsync<{ remote_id: number | null }>(
-            'SELECT remote_id FROM alerts WHERE local_id = ?',
-            localId,
+            'SELECT remote_id FROM alerts WHERE local_id = ? AND (owner_user_id IS ? OR owner_user_id = ?)',
+            localId, activeUserId, activeUserId,
           );
           if (row?.remote_id == null) continue;
           await apiClient.patch(`/me/alerts/${row.remote_id}`, payload);
@@ -100,10 +125,10 @@ const syncOutbox = async () => {
         default:
           console.warn('Discarding unknown outbox operation', item.op);
       }
-      await deleteOutboxItem(item.id);
+      await deleteOutboxItem(item.id, itemOwner);
     } catch (error) {
       if (isHttpStatus(error, 404) && ['favorite_remove', 'alert_delete', 'notification_read'].includes(item.op)) {
-        await deleteOutboxItem(item.id);
+        await deleteOutboxItem(item.id, itemOwner);
         continue;
       }
       throw error;
@@ -121,6 +146,7 @@ const executeSync = async (): Promise<SyncResult> => {
     await applyCheckpoint(checkpoint);
     if (checkpoint.user) await updateRememberedUser(checkpoint.user);
     await setMetadata('last_sync_error', null);
+    checkpointCommitted();
     return {
       ok: true,
       synced_at: checkpoint.generated_at || new Date().toISOString(),
@@ -146,16 +172,18 @@ export const syncNow = async (): Promise<SyncResult> => {
 
 export const syncIfDue = async (force = false): Promise<SyncResult> => {
   if (!force) {
-    const [lastSync, lastAttempt] = await Promise.all([
+    const [lastSync, lastAttempt, outbox] = await Promise.all([
       getMetadata('last_sync_at'),
       getMetadata('last_sync_attempt_at'),
+      getOutbox(),
     ]);
     const timestamps = [lastSync, lastAttempt]
       .filter((value): value is string => !!value)
       .map(value => new Date(value).getTime())
       .filter(Number.isFinite);
     const mostRecent = timestamps.length ? Math.max(...timestamps) : null;
-    if (mostRecent != null && Date.now() - mostRecent < SYNC_INTERVAL_MS) {
+    const retryWindow = outbox.length ? OUTBOX_RETRY_INTERVAL_MS : SYNC_INTERVAL_MS;
+    if (mostRecent != null && Date.now() - mostRecent < retryWindow) {
       return {
         ok: true,
         skipped: true,

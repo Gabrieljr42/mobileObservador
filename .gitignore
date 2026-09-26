@@ -2,6 +2,9 @@ node_modules/
 .expo/
 build/
 dist/
+dist-local-pilot/
+dist-tenderproof-stage12/
+dist-tenderproof-stage13/
 coverage/
 .DS_Store
 *.log
